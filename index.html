@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Money Wiz CRM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        function App() {
+            const [userType, setUserType] = useState(null);
+            const [customers, setCustomers] = useState([]);
+            const [dashboardData, setDashboardData] = useState({});
+
+            useEffect(() => {
+                fetchCustomers();
+                fetchDashboard();
+            }, []);
+
+            const fetchCustomers = async () => {
+                const response = await fetch('/api/customers');
+                const data = await response.json();
+                setCustomers(data);
+            };
+
+            const fetchDashboard = async () => {
+                const response = await fetch('/api/analytics/dashboard');
+                const data = await response.json();
+                setDashboardData(data);
+            };
+
+            if (!userType) {
+                return (
+                    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+                        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
+                            <div className="text-center mb-8">
+                                <h1 className="text-4xl font-bold text-gray-800 mb-2">💰 Money Wiz</h1>
+                                <p className="text-gray-600">Customer & Sales Management System</p>
+                            </div>
+                            <div className="space-y-4">
+                                <button
+                                    onClick={() => setUserType('salesperson')}
+                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-lg transition duration-200"
+                                >
+                                    Login as Salesperson
+                                </button>
+                                <button
+                                    onClick={() => setUserType('manager')}
+                                    className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-4 px-6 rounded-lg transition duration-200"
+                                >
+                                    Login as Region Manager
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-gray-50">
+                    <nav className="bg-white shadow-lg">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex justify-between h-16">
+                                <div className="flex items-center">
+                                    <h1 className="text-2xl font-bold text-gray-800">💰 Money Wiz CRM</h1>
+                                    <span className="ml-4 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                                        {userType === 'salesperson' ? 'Salesperson' : 'Region Manager'}
+                                    </span>
+                                </div>
+                                <button
+                                    onClick={() => setUserType(null)}
+                                    className="text-gray-600 hover:text-gray-800 font-medium"
+                                >
+                                    Logout
+                                </button>
+                            </div>
+                        </div>
+                    </nav>
+
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        <div className="bg-white rounded-lg shadow p-6">
+                            <h2 className="text-3xl font-bold text-gray-800 mb-6">Dashboard Overview</h2>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-6 rounded-lg shadow-lg text-white">
+                                    <p className="text-sm opacity-90">Total Sales</p>
+                                    <p className="text-3xl font-bold">€{dashboardData.totalSales?.toFixed(2) || 0}</p>
+                                </div>
+                                <div className="bg-gradient-to-br from-green-500 to-green-600 p-6 rounded-lg shadow-lg text-white">
+                                    <p className="text-sm opacity-90">Total Customers</p>
+                                    <p className="text-3xl font-bold">{dashboardData.totalCustomers || 0}</p>
+                                </div>
+                                <div className="bg-gradient-to-br from-purple-500 to-purple-600 p-6 rounded-lg shadow-lg text-white">
+                                    <p className="text-sm opacity-90">Total Orders</p>
+                                    <p className="text-3xl font-bold">{dashboardData.totalOrders || 0}</p>
+                                </div>
+                                <div className="bg-gradient-to-br from-orange-500 to-orange-600 p-6 rounded-lg shadow-lg text-white">
+                                    <p className="text-sm opacity-90">Avg Order Value</p>
+                                    <p className="text-3xl font-bold">€{dashboardData.avgOrderValue?.toFixed(2) || 0}</p>
+                                </div>
+                            </div>
+
+                            <div className="mt-8">
+                                <h3 className="text-xl font-semibold mb-4">Recent Customers</h3>
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Region</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="bg-white divide-y divide-gray-200">
+                                            {customers.slice(0, 5).map((customer, idx) => (
+                                                <tr key={idx}>
+                                                    <td className="px-6 py-4 whitespace-nowrap">{customer.CustomerName}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">{customer.Product}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">€{customer.TotalPrice}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">{customer.Region}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+
+</html>
