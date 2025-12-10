@@ -2,146 +2,540 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Money Wiz CRM</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <meta charset="UTF-8" />
+    <title>MoneyWiz CRM</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f4f6f9;
+        }
+
+        header {
+            background: #1f2937;
+            color: #fff;
+            padding: 16px 24px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 22px;
+        }
+
+        main {
+            padding: 16px 24px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 16px;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 6px;
+            padding: 16px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            font-size: 18px;
+            margin-top: 0;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            margin-top: 6px;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 6px 8px;
+            margin-top: 2px;
+            font-size: 13px;
+        }
+
+        button {
+            padding: 6px 10px;
+            margin-top: 8px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+            font-size: 12px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 6px 8px;
+            text-align: left;
+        }
+
+        th {
+            background: #f0f2f5;
+        }
+
+        .row-actions button {
+            margin-right: 4px;
+        }
+
+        .flex {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .info {
+            font-size: 12px;
+            color: #555;
+            margin-top: 4px;
+        }
+
+        .error {
+            color: #b91c1c;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        .success {
+            color: #166534;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        .charts {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+        }
+
+        ul {
+            padding-left: 16px;
+            margin: 4px 0;
+        }
+    </style>
 </head>
 
 <body>
-    <div id="root"></div>
+    <header>
+        <h1>MoneyWiz CRM Dashboard</h1>
+    </header>
 
-    <script type="text/babel">
-        const { useState, useEffect } = React;
+    <main>
+        <!-- Top: Dashboard + Analytics filters -->
+        <div class="grid">
+            <div class="card">
+                <h2>Overall Dashboard</h2>
+                <button onclick="loadDashboard()">Refresh Dashboard</button>
+                <div id="dashboard" class="info">
+                    <p>Total Sales: <span id="totalSales">-</span></p>
+                    <p>Total Customers: <span id="totalCustomers">-</span></p>
+                    <p>Total Orders: <span id="totalOrders">-</span></p>
+                    <p>Avg. Order Value: <span id="avgOrderValue">-</span></p>
+                </div>
+                <div id="dashboardMsg"></div>
+            </div>
 
-        function App() {
-            const [userType, setUserType] = useState(null);
-            const [customers, setCustomers] = useState([]);
-            const [dashboardData, setDashboardData] = useState({});
+            <div class="card">
+                <h2>Analytics Filters</h2>
+                <div>
+                    <label>Region</label>
+                    <input id="regionFilter" placeholder="e.g. North" />
+                    <button onclick="loadRegionAnalytics()">Get Region Sales</button>
+                </div>
+                <div>
+                    <label>Store Location</label>
+                    <input id="storeFilter" placeholder="e.g. Store A" />
+                    <button onclick="loadStoreAnalytics()">Get Store Sales</button>
+                </div>
+                <div>
+                    <label>Salesperson</label>
+                    <input id="salespersonFilter" placeholder="e.g. Alice" />
+                    <button onclick="loadSalespersonAnalytics()">Get Salesperson Sales</button>
+                </div>
+                <div id="analyticsMsg" class="info"></div>
+            </div>
+        </div>
 
-            useEffect(() => {
-                fetchCustomers();
-                fetchDashboard();
-            }, []);
+        <!-- Analytics summaries -->
+        <div class="card" style="margin-top: 16px;">
+            <h2>Analytics Summary (Product-wise TotalPrice)</h2>
+            <div class="charts">
+                <div>
+                    <strong>Region</strong>
+                    <ul id="regionSummary"></ul>
+                </div>
+                <div>
+                    <strong>Store</strong>
+                    <ul id="storeSummary"></ul>
+                </div>
+                <div>
+                    <strong>Salesperson</strong>
+                    <ul id="salespersonSummary"></ul>
+                </div>
+            </div>
+        </div>
 
-            const fetchCustomers = async () => {
-                const response = await fetch('/api/customers');
-                const data = await response.json();
-                setCustomers(data);
-            };
+        <!-- Bottom: Customer CRUD -->
+        <div class="grid" style="margin-top: 16px;">
+            <div class="card">
+                <h2>Customers</h2>
+                <button onclick="loadCustomers()">Refresh Customers</button>
+                <div class="info">Click edit/delete in each row to manage a customer.</div>
+                <table id="customersTable">
+                    <thead>
+                        <tr>
+                            <th>CustomerName</th>
+                            <th>CustomerType</th>
+                            <th>Product</th>
+                            <th>Quantity</th>
+                            <th>Region</th>
+                            <th>TotalPrice</th>
+                            <th>Salesperson</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+                <div id="customersMsg"></div>
+            </div>
 
-            const fetchDashboard = async () => {
-                const response = await fetch('/api/analytics/dashboard');
-                const data = await response.json();
-                setDashboardData(data);
-            };
-
-            if (!userType) {
-                return (
-                    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
-                        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
-                            <div className="text-center mb-8">
-                                <h1 className="text-4xl font-bold text-gray-800 mb-2">💰 Money Wiz</h1>
-                                <p className="text-gray-600">Customer & Sales Management System</p>
-                            </div>
-                            <div className="space-y-4">
-                                <button
-                                    onClick={() => setUserType('salesperson')}
-                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-lg transition duration-200"
-                                >
-                                    Login as Salesperson
-                                </button>
-                                <button
-                                    onClick={() => setUserType('manager')}
-                                    className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-4 px-6 rounded-lg transition duration-200"
-                                >
-                                    Login as Region Manager
-                                </button>
-                            </div>
-                        </div>
+            <div class="card">
+                <h2>Add / Edit Customer</h2>
+                <div class="info">
+                    For update: enter the same CustomerName as existing row; for add: use a new name.
+                </div>
+                <div class="flex">
+                    <div style="flex: 1 1 180px;">
+                        <label>CustomerName</label>
+                        <input id="cCustomerName" />
+                        <label>CustomerType</label>
+                        <input id="cCustomerType" />
+                        <label>Product</label>
+                        <input id="cProduct" />
+                        <label>Quantity</label>
+                        <input id="cQuantity" type="number" />
+                        <label>Region</label>
+                        <input id="cRegion" />
+                        <label>Date</label>
+                        <input id="cDate" type="date" />
                     </div>
-                );
-            }
-
-            return (
-                <div className="min-h-screen bg-gray-50">
-                    <nav className="bg-white shadow-lg">
-                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                            <div className="flex justify-between h-16">
-                                <div className="flex items-center">
-                                    <h1 className="text-2xl font-bold text-gray-800">💰 Money Wiz CRM</h1>
-                                    <span className="ml-4 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
-                                        {userType === 'salesperson' ? 'Salesperson' : 'Region Manager'}
-                                    </span>
-                                </div>
-                                <button
-                                    onClick={() => setUserType(null)}
-                                    className="text-gray-600 hover:text-gray-800 font-medium"
-                                >
-                                    Logout
-                                </button>
-                            </div>
-                        </div>
-                    </nav>
-
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                        <div className="bg-white rounded-lg shadow p-6">
-                            <h2 className="text-3xl font-bold text-gray-800 mb-6">Dashboard Overview</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-6 rounded-lg shadow-lg text-white">
-                                    <p className="text-sm opacity-90">Total Sales</p>
-                                    <p className="text-3xl font-bold">€{dashboardData.totalSales?.toFixed(2) || 0}</p>
-                                </div>
-                                <div className="bg-gradient-to-br from-green-500 to-green-600 p-6 rounded-lg shadow-lg text-white">
-                                    <p className="text-sm opacity-90">Total Customers</p>
-                                    <p className="text-3xl font-bold">{dashboardData.totalCustomers || 0}</p>
-                                </div>
-                                <div className="bg-gradient-to-br from-purple-500 to-purple-600 p-6 rounded-lg shadow-lg text-white">
-                                    <p className="text-sm opacity-90">Total Orders</p>
-                                    <p className="text-3xl font-bold">{dashboardData.totalOrders || 0}</p>
-                                </div>
-                                <div className="bg-gradient-to-br from-orange-500 to-orange-600 p-6 rounded-lg shadow-lg text-white">
-                                    <p className="text-sm opacity-90">Avg Order Value</p>
-                                    <p className="text-3xl font-bold">€{dashboardData.avgOrderValue?.toFixed(2) || 0}</p>
-                                </div>
-                            </div>
-
-                            <div className="mt-8">
-                                <h3 className="text-xl font-semibold mb-4">Recent Customers</h3>
-                                <div className="overflow-x-auto">
-                                    <table className="min-w-full divide-y divide-gray-200">
-                                        <thead className="bg-gray-50">
-                                            <tr>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Region</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="bg-white divide-y divide-gray-200">
-                                            {customers.slice(0, 5).map((customer, idx) => (
-                                                <tr key={idx}>
-                                                    <td className="px-6 py-4 whitespace-nowrap">{customer.CustomerName}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">{customer.Product}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">€{customer.TotalPrice}</td>
-                                                    <td className="px-6 py-4 whitespace-nowrap">{customer.Region}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
+                    <div style="flex: 1 1 180px;">
+                        <label>UnitPrice</label>
+                        <input id="cUnitPrice" type="number" step="0.01" />
+                        <label>StoreLocation</label>
+                        <input id="cStoreLocation" />
+                        <label>Discount</label>
+                        <input id="cDiscount" type="number" step="0.01" />
+                        <label>Salesperson</label>
+                        <input id="cSalesperson" />
+                        <label>PaymentMethod</label>
+                        <input id="cPaymentMethod" />
+                        <label>Promotion</label>
+                        <input id="cPromotion" />
+                    </div>
+                    <div style="flex: 1 1 180px;">
+                        <label>Returned</label>
+                        <input id="cReturned" type="number" />
+                        <label>OrderID</label>
+                        <input id="cOrderID" />
+                        <label>ShippingCost</label>
+                        <input id="cShippingCost" type="number" step="0.01" />
+                        <label>OrderDate</label>
+                        <input id="cOrderDate" type="date" />
+                        <label>DeliveryDate</label>
+                        <input id="cDeliveryDate" type="date" />
+                        <label>RegionManager</label>
+                        <input id="cRegionManager" />
                     </div>
                 </div>
-            );
+                <button onclick="addCustomer()">Add Customer</button>
+                <button onclick="updateCustomer()">Update Customer</button>
+                <button onclick="clearForm()">Clear Form</button>
+                <div id="formMsg"></div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        async function handleResponse(res) {
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(text || res.statusText);
+            }
+            try {
+                return await res.json();
+            } catch {
+                return {};
+            }
         }
 
-        ReactDOM.render(<App />, document.getElementById('root'));
+        // Dashboard
+        async function loadDashboard() {
+            const msg = document.getElementById('dashboardMsg');
+            msg.textContent = '';
+            try {
+                const res = await fetch('/api/analytics/dashboard');
+                const data = await handleResponse(res);
+                document.getElementById('totalSales').textContent = data.totalSales?.toFixed
+                    ? data.totalSales.toFixed(2)
+                    : data.totalSales;
+                document.getElementById('totalCustomers').textContent = data.totalCustomers;
+                document.getElementById('totalOrders').textContent = data.totalOrders;
+                document.getElementById('avgOrderValue').textContent = data.avgOrderValue?.toFixed
+                    ? data.avgOrderValue.toFixed(2)
+                    : data.avgOrderValue;
+            } catch (e) {
+                msg.textContent = 'Failed to load dashboard: ' + e.message;
+                msg.className = 'error';
+            }
+        }
+
+        // Customers CRUD
+        async function loadCustomers() {
+            const msg = document.getElementById('customersMsg');
+            msg.textContent = '';
+            try {
+                const res = await fetch('/api/customers');
+                const data = await handleResponse(res);
+                const tbody = document.querySelector('#customersTable tbody');
+                tbody.innerHTML = '';
+                data.forEach(row => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+          <td>${row.CustomerName || ''}</td>
+          <td>${row.CustomerType || ''}</td>
+          <td>${row.Product || ''}</td>
+          <td>${row.Quantity || ''}</td>
+          <td>${row.Region || ''}</td>
+          <td>${row.TotalPrice || ''}</td>
+          <td>${row.Salesperson || ''}</td>
+          <td class="row-actions">
+            <button onclick="fillFormFromRow('${row.CustomerName || ''}')">Edit</button>
+            <button onclick="deleteCustomer('${row.CustomerName || ''}')">Delete</button>
+          </td>
+        `;
+                    tbody.appendChild(tr);
+                });
+            } catch (e) {
+                msg.textContent = 'Failed to load customers: ' + e.message;
+                msg.className = 'error';
+            }
+        }
+
+        function fillFormFromRow(name) {
+            const rows = document.querySelectorAll('#customersTable tbody tr');
+            rows.forEach(r => {
+                const customerName = r.children[0].textContent;
+                if (customerName === name) {
+                    document.getElementById('cCustomerName').value = r.children[0].textContent;
+                    // These are the columns we show; others must be edited manually or via another call
+                    document.getElementById('cCustomerType').value = r.children[1].textContent;
+                    document.getElementById('cProduct').value = r.children[2].textContent;
+                    document.getElementById('cQuantity').value = r.children[3].textContent;
+                    document.getElementById('cRegion').value = r.children[4].textContent;
+                }
+            });
+        }
+
+        function collectFormData() {
+            const q = (id) => document.getElementById(id).value;
+            const num = (id) => {
+                const v = document.getElementById(id).value;
+                return v === '' ? null : Number(v);
+            };
+            return {
+                CustomerName: q('cCustomerName'),
+                CustomerType: q('cCustomerType'),
+                Product: q('cProduct'),
+                Quantity: num('cQuantity'),
+                Region: q('cRegion'),
+                Date: q('cDate'),
+                UnitPrice: num('cUnitPrice'),
+                StoreLocation: q('cStoreLocation'),
+                Discount: num('cDiscount'),
+                Salesperson: q('cSalesperson'),
+                TotalPrice: null, // optional: can be computed server-side
+                PaymentMethod: q('cPaymentMethod'),
+                Promotion: q('cPromotion'),
+                Returned: num('cReturned'),
+                OrderID: q('cOrderID'),
+                ShippingCost: num('cShippingCost'),
+                OrderDate: q('cOrderDate'),
+                DeliveryDate: q('cDeliveryDate'),
+                RegionManager: q('cRegionManager')
+            };
+        }
+
+        async function addCustomer() {
+            const msg = document.getElementById('formMsg');
+            msg.textContent = '';
+            const payload = collectFormData();
+            if (!payload.CustomerName) {
+                msg.textContent = 'CustomerName is required.';
+                msg.className = 'error';
+                return;
+            }
+            try {
+                const res = await fetch('/api/customers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                await handleResponse(res);
+                msg.textContent = 'Customer added successfully.';
+                msg.className = 'success';
+                loadCustomers();
+            } catch (e) {
+                msg.textContent = 'Failed to add customer: ' + e.message;
+                msg.className = 'error';
+            }
+        }
+
+        async function updateCustomer() {
+            const msg = document.getElementById('formMsg');
+            msg.textContent = '';
+            const payload = collectFormData();
+            if (!payload.CustomerName) {
+                msg.textContent = 'CustomerName is required for update.';
+                msg.className = 'error';
+                return;
+            }
+            try {
+                // NOTE: backend route is /api/customers/ with a path param; adjust if you change app.py
+                const res = await fetch('/api/customers/' + encodeURIComponent(payload.CustomerName), {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                await handleResponse(res);
+                msg.textContent = 'Customer updated successfully.';
+                msg.className = 'success';
+                loadCustomers();
+            } catch (e) {
+                msg.textContent = 'Failed to update customer: ' + e.message;
+                msg.className = 'error';
+            }
+        }
+
+        async function deleteCustomer(name) {
+            if (!name) return;
+            const msg = document.getElementById('customersMsg');
+            msg.textContent = '';
+            try {
+                const res = await fetch('/api/customers/' + encodeURIComponent(name), {
+                    method: 'DELETE'
+                });
+                await handleResponse(res);
+                msg.textContent = 'Customer deleted successfully.';
+                msg.className = 'success';
+                loadCustomers();
+            } catch (e) {
+                msg.textContent = 'Failed to delete customer: ' + e.message;
+                msg.className = 'error';
+            }
+        }
+
+        function clearForm() {
+            [
+                'cCustomerName', 'cCustomerType', 'cProduct', 'cQuantity', 'cRegion', 'cDate', 'cUnitPrice',
+                'cStoreLocation', 'cDiscount', 'cSalesperson', 'cPaymentMethod', 'cPromotion', 'cReturned',
+                'cOrderID', 'cShippingCost', 'cOrderDate', 'cDeliveryDate', 'cRegionManager'
+            ].forEach(id => document.getElementById(id).value = '');
+            document.getElementById('formMsg').textContent = '';
+        }
+
+        // Analytics calls
+        function renderSummaryList(containerId, data) {
+            const ul = document.getElementById(containerId);
+            ul.innerHTML = '';
+            if (!data || Object.keys(data).length === 0) {
+                ul.innerHTML = '<li>No data</li>';
+                return;
+            }
+            Object.entries(data).forEach(([product, total]) => {
+                const li = document.createElement('li');
+                li.textContent = product + ' : ' + total;
+                ul.appendChild(li);
+            });
+        }
+
+        async function loadRegionAnalytics() {
+            const region = document.getElementById('regionFilter').value.trim();
+            const msg = document.getElementById('analyticsMsg');
+            msg.textContent = '';
+            if (!region) {
+                msg.textContent = 'Enter a region.';
+                msg.className = 'error';
+                return;
+            }
+            try {
+                const res = await fetch('/api/analytics/region/' + encodeURIComponent(region));
+                const data = await handleResponse(res);
+                renderSummaryList('regionSummary', data);
+                msg.textContent = 'Region analytics loaded.';
+                msg.className = 'success';
+            } catch (e) {
+                msg.textContent = 'Failed to load region analytics: ' + e.message;
+                msg.className = 'error';
+            }
+        }
+
+        async function loadStoreAnalytics() {
+            const store = document.getElementById('storeFilter').value.trim();
+            const msg = document.getElementById('analyticsMsg');
+            msg.textContent = '';
+            if (!store) {
+                msg.textContent = 'Enter a store.';
+                msg.className = 'error';
+                return;
+            }
+            try {
+                const res = await fetch('/api/analytics/store/' + encodeURIComponent(store));
+                const data = await handleResponse(res);
+                renderSummaryList('storeSummary', data);
+                msg.textContent = 'Store analytics loaded.';
+                msg.className = 'success';
+            } catch (e) {
+                msg.textContent = 'Failed to load store analytics: ' + e.message;
+                msg.className = 'error';
+            }
+        }
+
+        async function loadSalespersonAnalytics() {
+            const person = document.getElementById('salespersonFilter').value.trim();
+            const msg = document.getElementById('analyticsMsg');
+            msg.textContent = '';
+            if (!person) {
+                msg.textContent = 'Enter a salesperson.';
+                msg.className = 'error';
+                return;
+            }
+            try {
+                const res = await fetch('/api/analytics/salesperson/' + encodeURIComponent(person));
+                const data = await handleResponse(res);
+                renderSummaryList('salespersonSummary', data);
+                msg.textContent = 'Salesperson analytics loaded.';
+                msg.className = 'success';
+            } catch (e) {
+                msg.textContent = 'Failed to load salesperson analytics: ' + e.message;
+                msg.className = 'error';
+            }
+        }
+
+        // Initial load
+        loadDashboard();
+        loadCustomers();
     </script>
 </body>
 
