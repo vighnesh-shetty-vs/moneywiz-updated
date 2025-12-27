@@ -28,7 +28,7 @@ def sync_data_from_excel():
                 if col in df.columns:
                     df[col] = df[col].astype(str).str.strip().str.lower()
             
-            # Use append to preserve web-added data on Render
+            # Use append to preserve manually added data
             df.to_sql("sales", conn.engine, if_exists="append", index=False)
             
             default_pw = hashlib.sha256("password123".encode()).hexdigest()
@@ -43,10 +43,12 @@ def sync_data_from_excel():
             st.error(f"Automatic Sync Error: {e}")
 
 def init_db():
-    """Ensures tables exist before any queries are run."""
+    """Initializes standard SQL tables with full schema to prevent 'no such table' errors."""
     with conn.session as s:
+        # User Authentication Table
         s.execute(text("CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT, role TEXT);"))
-        # Explicit schema creation to prevent 'no such table' error
+        
+        # Explicitly define the Sales table schema at startup
         s.execute(text("""
             CREATE TABLE IF NOT EXISTS sales (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -57,6 +59,8 @@ def init_db():
                 RegionManager TEXT
             );
         """))
+        
+        # Default Admin
         admin_pw = hashlib.sha256("admin123".encode()).hexdigest()
         s.execute(text("INSERT OR IGNORE INTO users VALUES ('admin', :p, 'Region Manager')"), {"p": admin_pw})
         s.commit()
@@ -85,17 +89,18 @@ def login():
 
 # --- MAIN APP ---
 def main():
-    # 1. Initialize DB FIRST to create tables
+    # 1. Ensure tables exist before doing anything else
     init_db()
     
-    if "logged_in" not in st.session_state: st.session_state.logged_in = False
+    if "logged_in" not in st.session_state: 
+        st.session_state.logged_in = False
     
     if not st.session_state.logged_in:
         st.title("🧾 Money Wiz CRM")
         login()
         return
 
-    # 2. Now safe to query
+    # 2. Querying is now safe because init_db guaranteed the table exists
     df_all = conn.query("SELECT * FROM sales", ttl=0)
 
     st.sidebar.write(f"Logged in: **{st.session_state.username}**")
@@ -106,6 +111,7 @@ def main():
     user = st.session_state.username
     role = st.session_state.role
 
+    # --- SALESPERSON WORKSPACE ---
     if role == "Salesperson":
         st.header("👤 Salesperson Workspace")
         my_data = df_all[df_all["Salesperson"].astype(str).str.lower() == user]
@@ -119,14 +125,14 @@ def main():
                 name = c1.text_input("Customer Name")
                 c_type = c1.selectbox("Customer Type", get_choices(df_all, "CustomerType", ["Retail", "Wholesale"]))
                 prod = c1.selectbox("Product", get_choices(df_all, "Product", ["Laptop", "Phone", "Tablet"]))
-                qty = c1.number_input("Quantity", min_value=1)
-                u_p = c2.number_input("Unit Price", min_value=0.0)
-                disc = c2.number_input("Discount", min_value=0.0)
-                reg = c2.selectbox("Region", get_choices(df_all, "Region", ["North", "South", "East", "West"]))
-                loc = c2.selectbox("Store Location", get_choices(df_all, "StoreLocation", ["Store A", "Store B"]))
+                qty = c1.number_input("Quantity", min_value=1, value=1)
+                u_p = c2.number_input("Unit Price", min_value=0.0, value=0.0)
+                disc = c2.number_input("Discount", min_value=0.0, value=0.0)
+                reg = c2.selectbox("Region", get_choices(df_all, "Region", ["North", "South"]))
+                loc = c2.selectbox("Store Location", get_choices(df_all, "StoreLocation", ["Main Store"]))
                 
-                # Formula Display
-                ship = c3.number_input("Shipping Cost", min_value=0.0)
+                # Formula Display (Read-Only)
+                ship = c3.number_input("Shipping Cost", min_value=0.0, value=0.0)
                 calc_total = (qty * u_p) - disc + ship
                 c2.number_input("Total Price (Calculated)", value=calc_total, disabled=True)
                 
@@ -154,34 +160,31 @@ def main():
                     st.rerun()
 
         with tabs[1]:
-            st.subheader("Update All Fields by OrderID")
+            st.subheader("Update Record by OrderID")
             search_oid = st.text_input("Enter OrderID to Modify")
             if search_oid:
                 record = my_data[my_data["OrderID"].astype(str) == search_oid]
                 if not record.empty:
                     with st.form("full_up_form"):
                         u1, u2, u3 = st.columns(3)
-                        u_name = u1.text_input("Customer Name", value=record.iloc[0]['CustomerName'])
-                        u_ct = u1.selectbox("Customer Type", get_choices(df_all, "CustomerType", ["Retail"]), index=0)
-                        u_prod = u1.selectbox("Product", get_choices(df_all, "Product", ["Laptop"]), index=0)
-                        u_qty = u1.number_input("Quantity", value=int(record.iloc[0]['Quantity']))
-                        u_up = u2.number_input("Unit Price", value=float(record.iloc[0]['UnitPrice']))
-                        u_disc = u2.number_input("Discount", value=float(record.iloc[0].get('Discount', 0.0)))
-                        u_reg = u2.selectbox("Region", get_choices(df_all, "Region", ["North"]), index=0)
-                        u_loc = u2.selectbox("Store Location", get_choices(df_all, "StoreLocation", ["Store A"]), index=0)
-                        u_pay = u3.selectbox("Payment Method", ["Cash", "Card", "Online"])
-                        u_prom = u3.text_input("Promotion", value=str(record.iloc[0].get('Promotion', '')))
-                        u_ret = u3.text_input("Returned (Status)", value=str(record.iloc[0].get('Returned', 'No')))
-                        u_ship = u3.number_input("Shipping Cost", value=float(record.iloc[0].get('ShippingCost', 0.0)))
+                        up_name = u1.text_input("Customer Name", value=record.iloc[0]['CustomerName'])
+                        up_qty = u1.number_input("Quantity", value=int(record.iloc[0]['Quantity']), min_value=1)
+                        up_up = u2.number_input("Unit Price", value=float(record.iloc[0]['UnitPrice']), min_value=0.0)
+                        up_disc = u2.number_input("Discount", value=float(record.iloc[0].get('Discount', 0.0)))
+                        up_ship = u3.number_input("Shipping Cost", value=float(record.iloc[0].get('ShippingCost', 0.0)))
                         
-                        # Fix NameError here: using correct u_ variables
-                        up_calc_total = (u_qty * u_up) - u_disc + u_ship
+                        # Read-Only Calculation
+                        up_calc_total = (up_qty * up_up) - up_disc + up_ship
                         u2.number_input("Total Price (Calculated)", value=up_calc_total, disabled=True)
+                        
+                        up_ret = u3.text_input("Returned (Status)", value=str(record.iloc[0].get('Returned', 'No')))
 
-                        if st.form_submit_button("Apply Full Update"):
+                        if st.form_submit_button("Apply Changes"):
                             with conn.session as s:
-                                s.execute(text("""UPDATE sales SET CustomerName=:n, CustomerType=:ct, Product=:p, Quantity=:q, Region=:r, UnitPrice=:up, StoreLocation=:sl, Discount=:di, TotalPrice=:tp, PaymentMethod=:pm, Promotion=:pr, Returned=:re, ShippingCost=:sc WHERE OrderID=:oid AND Salesperson=:u"""),
-                                          {"n":u_name, "ct":u_ct, "p":u_prod, "q":u_qty, "r":u_reg.lower(), "up":u_up, "sl":u_loc.lower(), "di":u_disc, "tp":u_qty*u_up - u_disc + u_ship, "pm":u_pay, "pr":u_prom, "re":u_ret, "sc":u_ship, "oid":search_oid, "u":user})
+                                s.execute(text("""UPDATE sales SET CustomerName=:n, Quantity=:q, UnitPrice=:up, Discount=:di, 
+                                               TotalPrice=:tp, Returned=:re, ShippingCost=:sc WHERE OrderID=:oid AND Salesperson=:u"""),
+                                          {"n":up_name, "q":up_qty, "up":up_up, "di":up_disc, "tp":up_calc_total, 
+                                           "re":up_ret, "sc":up_ship, "oid":search_oid, "u":user})
                                 s.commit()
                             msg = st.empty()
                             msg.success(f"✅ Order {search_oid} updated successfully!")
@@ -190,44 +193,34 @@ def main():
                             st.rerun()
                 else: st.warning("OrderID not found.")
 
+        # Tabs 2-5 (Delete, View, Search, Analytics) logic...
         with tabs[2]:
-            st.subheader("Delete Customer Record")
-            search_input = st.text_input("Search Customer Name to Delete")
-            if search_input:
-                matches = my_data[my_data["CustomerName"].str.contains(search_input, case=False, na=False)]
+            st.subheader("Delete Record")
+            search_del = st.text_input("Search Name for Deletion")
+            if search_del:
+                matches = my_data[my_data["CustomerName"].str.contains(search_del, case=False, na=False)]
                 if not matches.empty:
-                    match_list = [f"{row['CustomerName']} | {row['OrderID']} | {row['Product']}" for _, row in matches.iterrows()]
-                    selected_match = st.selectbox("Select exact entry", match_list)
+                    m_opts = {f"{r['CustomerName']} | {r['OrderID']}": r['OrderID'] for _, r in matches.iterrows()}
+                    sel = st.selectbox("Select entry", options=list(m_opts.keys()))
                     if st.button("Permanently Delete", type="primary"):
-                        target_oid = selected_match.split(" | ")[1]
                         with conn.session as s:
-                            s.execute(text("DELETE FROM sales WHERE OrderID=:oid AND Salesperson=:u"), 
-                                      {"oid":target_oid, "u":user})
+                            s.execute(text("DELETE FROM sales WHERE OrderID=:oid"), {"oid":m_opts[sel]})
                             s.commit()
                         msg = st.empty()
-                        msg.success(f"🗑️ Record {target_oid} deleted!")
+                        msg.success("🗑️ Record deleted!")
                         time.sleep(5)
                         msg.empty()
                         st.rerun()
 
-        with tabs[3]: 
-            st.dataframe(my_data)
-        
-        with tabs[4]: 
-            st.subheader("Search Customer Records")
-            query = st.text_input("Enter Customer Name")
-            if query:
-                res = my_data[my_data["CustomerName"].str.contains(query, case=False, na=False)]
-                if not res.empty:
-                    for idx, row in res.iterrows():
-                        with st.expander(f"Details: {row['CustomerName']} (ID: {row['OrderID']})"):
-                            st.json(row.to_dict()) 
-                else: st.warning("No matches found.")
-
-        with tabs[5]: 
-            if not my_data.empty:
-                st.subheader("Your Sales Analytics")
-                st.bar_chart(my_data.groupby("Product")["TotalPrice"].sum())
+        with tabs[3]: st.dataframe(my_data)
+        with tabs[4]:
+            q = st.text_input("Search Name")
+            if q:
+                res = my_data[my_data["CustomerName"].str.contains(q, case=False, na=False)]
+                for _, r in res.iterrows():
+                    with st.expander(f"Details: {r['CustomerName']}"): st.json(r.to_dict())
+        with tabs[5]:
+            if not my_data.empty: st.bar_chart(my_data.groupby("Product")["TotalPrice"].sum())
 
     elif role == "Region Manager":
         st.header("📈 Managerial Insights")
