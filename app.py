@@ -28,7 +28,7 @@ def sync_data_from_excel():
                 if col in df.columns:
                     df[col] = df[col].astype(str).str.strip().str.lower()
             
-            # CHANGE: Use 'append' instead of 'replace' to keep manually added data
+            # Use append to preserve web-added data on Render
             df.to_sql("sales", conn.engine, if_exists="append", index=False)
             
             default_pw = hashlib.sha256("password123".encode()).hexdigest()
@@ -43,9 +43,20 @@ def sync_data_from_excel():
             st.error(f"Automatic Sync Error: {e}")
 
 def init_db():
-    """Initializes the users table and default admin."""
+    """Ensures tables exist before any queries are run."""
     with conn.session as s:
         s.execute(text("CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT, role TEXT);"))
+        # Explicit schema creation to prevent 'no such table' error
+        s.execute(text("""
+            CREATE TABLE IF NOT EXISTS sales (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                CustomerName TEXT, CustomerType TEXT, Product TEXT, Quantity INTEGER,
+                Region TEXT, Date TEXT, UnitPrice REAL, StoreLocation TEXT,
+                Discount REAL, Salesperson TEXT, TotalPrice REAL, PaymentMethod TEXT,
+                Promotion TEXT, Returned TEXT, OrderID TEXT, ShippingCost REAL,
+                RegionManager TEXT
+            );
+        """))
         admin_pw = hashlib.sha256("admin123".encode()).hexdigest()
         s.execute(text("INSERT OR IGNORE INTO users VALUES ('admin', :p, 'Region Manager')"), {"p": admin_pw})
         s.commit()
@@ -74,7 +85,9 @@ def login():
 
 # --- MAIN APP ---
 def main():
+    # 1. Initialize DB FIRST to create tables
     init_db()
+    
     if "logged_in" not in st.session_state: st.session_state.logged_in = False
     
     if not st.session_state.logged_in:
@@ -82,7 +95,7 @@ def main():
         login()
         return
 
-    # Fetch df_all
+    # 2. Now safe to query
     df_all = conn.query("SELECT * FROM sales", ttl=0)
 
     st.sidebar.write(f"Logged in: **{st.session_state.username}**")
@@ -112,7 +125,7 @@ def main():
                 reg = c2.selectbox("Region", get_choices(df_all, "Region", ["North", "South", "East", "West"]))
                 loc = c2.selectbox("Store Location", get_choices(df_all, "StoreLocation", ["Store A", "Store B"]))
                 
-                # Formula-based Read-Only Total Price
+                # Formula Display
                 ship = c3.number_input("Shipping Cost", min_value=0.0)
                 calc_total = (qty * u_p) - disc + ship
                 c2.number_input("Total Price (Calculated)", value=calc_total, disabled=True)
@@ -121,8 +134,8 @@ def main():
                 c3.info(f"Generated OrderID: {sys_oid}")
                 pay = c3.selectbox("Payment Method", ["Cash", "Card", "Online"])
                 prom = c3.text_input("Promotion")
-                r_man = c3.selectbox("Region Manager", get_choices(df_all, "RegionManager", ["Admin"]))
                 ret_status = c3.text_input("Returned (Status)", value="No") 
+                r_man = c3.selectbox("Region Manager", get_choices(df_all, "RegionManager", ["Admin"]))
                 
                 if st.form_submit_button("Submit"):
                     with conn.session as s:
@@ -130,7 +143,7 @@ def main():
                                        StoreLocation, Discount, Salesperson, TotalPrice, PaymentMethod, Promotion, Returned, 
                                        OrderID, ShippingCost, RegionManager) VALUES (:n, :ct, :p, :q, :r, :d, :up, :sl, :di, :sp, :tp, :pm, :pr, :re, :oid, :sc, :rm)"""),
                                   {"n":name, "ct":c_type, "p":prod, "q":qty, "r":reg.lower(), "d":datetime.now().strftime("%Y-%m-%d"), 
-                                   "up":u_p, "sl":loc.lower(), "di":disc, "sp":user, "tp":qty*u_p-disc+ship, "pm":pay, "pr":prom, "re":ret_status, 
+                                   "up":u_p, "sl":loc.lower(), "di":disc, "sp":user, "tp":calc_total, "pm":pay, "pr":prom, "re":ret_status, 
                                    "oid":sys_oid, "sc":ship, "rm":r_man.lower()})
                         s.commit()
                     
